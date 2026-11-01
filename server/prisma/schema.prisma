@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Currency {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  name      String
+  rateToDzd Decimal    @db.Decimal(18, 6)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  debts     Debt[]
+  purchases Purchase[]
+  wallets   Wallet[]
+}
+
+model Product {
+  id        String            @id @default(cuid())
+  name      String
+  imageUrl  String?
+  status    ProductStatus     @default(SENT_BY_MERCHANT)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  category  String            @default("OTHER")
+  purchase  Purchase?
+  sale      Sale?
+  history   ShippingHistory[]
+}
+
+model Purchase {
+  id             String   @id @default(cuid())
+  reference      String   @unique
+  productId      String   @unique
+  platform       String
+  productUrl     String?
+  orderNumber    String?
+  purchaseDate   DateTime @default(now())
+  currencyId     String
+  purchasePrice  Decimal  @db.Decimal(18, 4)
+  shippingAmount Decimal  @default(0) @db.Decimal(18, 4)
+  extraFees      Decimal  @default(0) @db.Decimal(18, 4)
+  exchangeRate   Decimal  @db.Decimal(18, 6)
+  totalForeign   Decimal  @db.Decimal(18, 4)
+  totalCostDzd   Decimal  @db.Decimal(18, 2)
+  createdAt      DateTime @default(now())
+  currency       Currency @relation(fields: [currencyId], references: [id])
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ShippingHistory {
+  id        String        @id @default(cuid())
+  productId String
+  status    ProductStatus
+  changedAt DateTime      @default(now())
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Sale {
+  id              String   @id @default(cuid())
+  reference       String   @unique
+  productId       String   @unique
+  saleDate        DateTime @default(now())
+  salePriceDzd    Decimal  @db.Decimal(18, 2)
+  costDzd         Decimal  @db.Decimal(18, 2)
+  saleExpensesDzd Decimal  @default(0) @db.Decimal(18, 2)
+  profitDzd       Decimal  @db.Decimal(18, 2)
+  createdAt       DateTime @default(now())
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Wallet {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  currencyId String
+  balance    Decimal  @default(0) @db.Decimal(18, 2)
+  updatedAt  DateTime @updatedAt
+  currency   Currency @relation(fields: [currencyId], references: [id])
+}
+
+model Debt {
+  id         String        @id @default(cuid())
+  personName String
+  direction  DebtDirection
+  amount     Decimal       @db.Decimal(18, 2)
+  currencyId String
+  createdAt  DateTime      @default(now())
+  currency   Currency      @relation(fields: [currencyId], references: [id])
+}
+
+enum ProductStatus {
+  SENT_BY_MERCHANT
+  RECEIVED_ABROAD
+  SENT_TO_ALGERIA
+  RECEIVED_IN_ALGERIA
+  AVAILABLE
+  SOLD
+}
+
+enum DebtDirection {
+  I_OWE
+  OWED_TO_ME
+}
+
+model NetWorthHistory {
+id         String   @id @default(cuid())
+netWorth   Decimal  @db.Decimal(14, 2)
+recordedAt DateTime @default(now())
+dayKey     String   @unique
+
+@@index([recordedAt])
+@@map("net_worth_history")
+}
