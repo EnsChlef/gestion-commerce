@@ -1,5 +1,8 @@
 import "dotenv/config";
 import express from "express";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import {
   createHmac,
@@ -136,11 +139,9 @@ const isValidSession = (req: express.Request): boolean => {
 };
 const requireAuth: express.RequestHandler = (req, res, next) => {
   if (!isValidSession(req)) {
-    res
-      .status(401)
-      .json({
-        error: "Session expirée ou non authentifiée. Veuillez vous connecter.",
-      });
+    res.status(401).json({
+      error: "Session expirée ou non authentifiée. Veuillez vous connecter.",
+    });
     return;
   }
   next();
@@ -515,13 +516,7 @@ app.get(
       };
     const rows = await prisma.sale.findMany({
       where,
-      include: {
-        product: {
-          include: {
-            purchase: { select: { productUrl: true } },
-          },
-        },
-      },
+      include: { product: true },
       orderBy: { saleDate: "desc" },
     });
     res.json(
@@ -903,6 +898,8 @@ app.get(
       availableCount: products.filter(
         (p) => p.status === ProductStatus.AVAILABLE,
       ).length,
+      // Explicitly type the list as ProductStatus[] so TypeScript accepts
+      // comparison with the complete Prisma ProductStatus enum.
       inTransitCount: products.filter((p) =>
         (
           [
@@ -912,12 +909,52 @@ app.get(
           ] as ProductStatus[]
         ).includes(p.status),
       ).length,
-
       walletRows,
     });
   }),
 );
 
+// Serve the Vite-built React frontend from the same origin as the API.
+// Render may start the workspace with either the repository root or server/ as cwd,
+// so check both locations as well as the location beside the compiled server file.
+const possibleClientBuildDirectories = [
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "public"),
+  path.resolve(process.cwd(), "dist", "public"),
+  path.resolve(process.cwd(), "server", "dist", "public"),
+];
+
+const clientBuildDirectory = possibleClientBuildDirectories.find((directory) =>
+  existsSync(path.join(directory, "index.html")),
+);
+
+console.log("[FRONTEND DEBUG]", {
+  workingDirectory: process.cwd(),
+  possibleDirectories: possibleClientBuildDirectories,
+  selectedDirectory: clientBuildDirectory ?? "NOT FOUND",
+});
+
+if (clientBuildDirectory) {
+  app.use(express.static(clientBuildDirectory));
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+
+    res.sendFile(path.join(clientBuildDirectory, "index.html"), (error) => {
+      if (error) next(error);
+    });
+  });
+} else {
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+    res.status(503).send("Frontend build introuvable sur le serveur.");
+  });
+}
 app.use(
   (
     err: unknown,
