@@ -136,9 +136,11 @@ const isValidSession = (req: express.Request): boolean => {
 };
 const requireAuth: express.RequestHandler = (req, res, next) => {
   if (!isValidSession(req)) {
-    res.status(401).json({
-      error: "Session expirée ou non authentifiée. Veuillez vous connecter.",
-    });
+    res
+      .status(401)
+      .json({
+        error: "Session expirée ou non authentifiée. Veuillez vous connecter.",
+      });
     return;
   }
   next();
@@ -513,7 +515,13 @@ app.get(
       };
     const rows = await prisma.sale.findMany({
       where,
-      include: { product: true },
+      include: {
+        product: {
+          include: {
+            purchase: { select: { productUrl: true } },
+          },
+        },
+      },
       orderBy: { saleDate: "desc" },
     });
     res.json(
@@ -895,8 +903,6 @@ app.get(
       availableCount: products.filter(
         (p) => p.status === ProductStatus.AVAILABLE,
       ).length,
-      // Explicitly type the list as ProductStatus[] so TypeScript accepts
-      // comparison with the complete Prisma ProductStatus enum.
       inTransitCount: products.filter((p) =>
         (
           [
@@ -906,6 +912,7 @@ app.get(
           ] as ProductStatus[]
         ).includes(p.status),
       ).length,
+
       walletRows,
     });
   }),
