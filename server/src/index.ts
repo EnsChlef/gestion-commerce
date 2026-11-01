@@ -1,7 +1,12 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import {
+  createHmac,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from "node:crypto";
 import {
   Prisma,
   PrismaClient,
@@ -16,7 +21,10 @@ const port = Number(process.env.PORT || 4000);
 const isProduction = process.env.NODE_ENV === "production";
 if (isProduction) app.set("trust proxy", 1);
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173,http://192.168.1.5:5173")
+const allowedOrigins = (
+  process.env.CLIENT_ORIGIN ||
+  "http://localhost:5173,http://127.0.0.1:5173,http://192.168.1.5:5173"
+)
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -40,18 +48,34 @@ const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const SESSION_COOKIE = "gestion_commerce_session";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
-const sameSiteSetting = (process.env.AUTH_COOKIE_SAME_SITE || "lax").toLowerCase();
-const cookieSameSite = (sameSiteSetting === "strict" || sameSiteSetting === "none" ? sameSiteSetting : "lax") as "lax" | "strict" | "none";
+const sameSiteSetting = (
+  process.env.AUTH_COOKIE_SAME_SITE || "lax"
+).toLowerCase();
+const cookieSameSite = (
+  sameSiteSetting === "strict" || sameSiteSetting === "none"
+    ? sameSiteSetting
+    : "lax"
+) as "lax" | "strict" | "none";
 const cookieSecure = isProduction || cookieSameSite === "none";
 
-if (!ADMIN_USERNAME || !ADMIN_PASSWORD_SALT || !/^[a-f0-9]{128}$/i.test(ADMIN_PASSWORD_HASH)) {
-  throw new Error("Authentification non configurée : définissez ADMIN_USERNAME, ADMIN_PASSWORD_SALT et ADMIN_PASSWORD_HASH dans server/.env.");
+if (
+  !ADMIN_USERNAME ||
+  !ADMIN_PASSWORD_SALT ||
+  !/^[a-f0-9]{128}$/i.test(ADMIN_PASSWORD_HASH)
+) {
+  throw new Error(
+    "Authentification non configurée : définissez ADMIN_USERNAME, ADMIN_PASSWORD_SALT et ADMIN_PASSWORD_HASH dans server/.env.",
+  );
 }
 if (SESSION_SECRET.length < 32) {
-  throw new Error("SESSION_SECRET doit contenir au moins 32 caractères aléatoires dans server/.env.");
+  throw new Error(
+    "SESSION_SECRET doit contenir au moins 32 caractères aléatoires dans server/.env.",
+  );
 }
 if (isProduction && !process.env.CLIENT_ORIGIN) {
-  throw new Error("En production, CLIENT_ORIGIN doit contenir l'origine exacte du site client.");
+  throw new Error(
+    "En production, CLIENT_ORIGIN doit contenir l'origine exacte du site client.",
+  );
 }
 
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -64,19 +88,29 @@ const signSession = (payload: string) =>
   createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
 const createSessionToken = (username: string) => {
   const payload = Buffer.from(
-    JSON.stringify({ sub: username, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS, nonce: randomBytes(16).toString("hex") }),
+    JSON.stringify({
+      sub: username,
+      exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+      nonce: randomBytes(16).toString("hex"),
+    }),
   ).toString("base64url");
   return `${payload}.${signSession(payload)}`;
 };
-const readCookie = (req: express.Request, cookieName: string): string | undefined => {
+const readCookie = (
+  req: express.Request,
+  cookieName: string,
+): string | undefined => {
   const header = req.headers.cookie;
   if (!header) return undefined;
   for (const item of header.split(";")) {
     const separator = item.indexOf("=");
     if (separator < 0) continue;
     if (item.slice(0, separator).trim() === cookieName) {
-      try { return decodeURIComponent(item.slice(separator + 1).trim()); }
-      catch { return undefined; }
+      try {
+        return decodeURIComponent(item.slice(separator + 1).trim());
+      } catch {
+        return undefined;
+      }
     }
   }
   return undefined;
@@ -88,15 +122,23 @@ const isValidSession = (req: express.Request): boolean => {
     const [payload, receivedSignature, extra] = token.split(".");
     if (!payload || !receivedSignature || extra !== undefined) return false;
     if (!safeEqual(receivedSignature, signSession(payload))) return false;
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: string; exp?: number };
-    return data.sub === ADMIN_USERNAME && typeof data.exp === "number" && data.exp > Math.floor(Date.now() / 1000);
+    const data = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as { sub?: string; exp?: number };
+    return (
+      data.sub === ADMIN_USERNAME &&
+      typeof data.exp === "number" &&
+      data.exp > Math.floor(Date.now() / 1000)
+    );
   } catch {
     return false;
   }
 };
 const requireAuth: express.RequestHandler = (req, res, next) => {
   if (!isValidSession(req)) {
-    res.status(401).json({ error: "Session expirée ou non authentifiée. Veuillez vous connecter." });
+    res.status(401).json({
+      error: "Session expirée ou non authentifiée. Veuillez vous connecter.",
+    });
     return;
   }
   next();
@@ -115,7 +157,9 @@ app.post("/api/auth/login", (req, res) => {
   const now = Date.now();
   const current = loginAttempts.get(ip);
   if (current && current.resetAt > now && current.count >= 8) {
-    res.status(429).json({ error: "Trop de tentatives. Réessayez dans 15 minutes." });
+    res
+      .status(429)
+      .json({ error: "Trop de tentatives. Réessayez dans 15 minutes." });
     return;
   }
   if (!current || current.resetAt <= now) {
@@ -124,36 +168,65 @@ app.post("/api/auth/login", (req, res) => {
     current.count += 1;
   }
 
-  const parsed = z.object({ username: z.string().min(1).max(100), password: z.string().min(1).max(300) }).safeParse(req.body);
+  const parsed = z
+    .object({
+      username: z.string().min(1).max(100),
+      password: z.string().min(1).max(300),
+    })
+    .safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Identifiant et mot de passe obligatoires." });
+    res
+      .status(400)
+      .json({ error: "Identifiant et mot de passe obligatoires." });
     return;
   }
-  const candidateHash = scryptSync(parsed.data.password, ADMIN_PASSWORD_SALT, 64).toString("hex");
-  if (parsed.data.username !== ADMIN_USERNAME || !safeEqual(candidateHash, ADMIN_PASSWORD_HASH.toLowerCase())) {
+  const candidateHash = scryptSync(
+    parsed.data.password,
+    ADMIN_PASSWORD_SALT,
+    64,
+  ).toString("hex");
+  if (
+    parsed.data.username !== ADMIN_USERNAME ||
+    !safeEqual(candidateHash, ADMIN_PASSWORD_HASH.toLowerCase())
+  ) {
     res.status(401).json({ error: "Identifiant ou mot de passe incorrect." });
     return;
   }
 
   loginAttempts.delete(ip);
-  res.cookie(SESSION_COOKIE, createSessionToken(ADMIN_USERNAME), sessionCookieOptions);
+  res.cookie(
+    SESSION_COOKIE,
+    createSessionToken(ADMIN_USERNAME),
+    sessionCookieOptions,
+  );
   res.json({ authenticated: true, username: ADMIN_USERNAME });
 });
 
 app.post("/api/auth/logout", (_req, res) => {
-  res.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions, maxAge: undefined });
+  res.clearCookie(SESSION_COOKIE, {
+    ...sessionCookieOptions,
+    maxAge: undefined,
+  });
   res.status(204).send();
 });
 
 // Expose only the health check and authentication entry points without a session.
 // Every other /api endpoint requires the signed, HttpOnly session cookie.
 app.use("/api", (req, res, next) => {
-  if (req.path === "/health" || req.path === "/auth/login" || req.path === "/auth/logout") {
+  if (
+    req.path === "/health" ||
+    req.path === "/auth/login" ||
+    req.path === "/auth/logout"
+  ) {
     next();
     return;
   }
   const origin = req.get("origin");
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && origin && !allowedOriginSet.has(origin)) {
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(req.method) &&
+    origin &&
+    !allowedOriginSet.has(origin)
+  ) {
     res.status(403).json({ error: "Origine non autorisée." });
     return;
   }
@@ -822,12 +895,16 @@ app.get(
       availableCount: products.filter(
         (p) => p.status === ProductStatus.AVAILABLE,
       ).length,
+      // Explicitly type the list as ProductStatus[] so TypeScript accepts
+      // comparison with the complete Prisma ProductStatus enum.
       inTransitCount: products.filter((p) =>
-        [
-          ProductStatus.SENT_BY_MERCHANT,
-          ProductStatus.RECEIVED_ABROAD,
-          ProductStatus.SENT_TO_ALGERIA,
-        ].includes(p.status),
+        (
+          [
+            ProductStatus.SENT_BY_MERCHANT,
+            ProductStatus.RECEIVED_ABROAD,
+            ProductStatus.SENT_TO_ALGERIA,
+          ] as ProductStatus[]
+        ).includes(p.status),
       ).length,
       walletRows,
     });
