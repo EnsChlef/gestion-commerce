@@ -72,7 +72,7 @@ type Sale = {
   profitDzd: number;
   product: {
     name: string;
-    purchase?: { productUrl?: string | null } | null;
+    purchase?: { productUrl?: string | null; platform?: string | null } | null;
   };
 };
 type Dashboard = {
