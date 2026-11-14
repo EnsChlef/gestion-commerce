@@ -92,10 +92,10 @@ type Dashboard = {
 
 const API = import.meta.env.VITE_API_URL || "/api";
 const statusLabels: Record<string, string> = {
+  WAIT: "Wait",
   SENT_BY_MERCHANT: "send",
   RECEIVED_ABROAD: "delivred",
   SENT_TO_ALGERIA: "Sent to Algeria",
-  RECEIVED_IN_ALGERIA: "Received in Algeria",
   AVAILABLE: "end",
   SOLD: "Sold",
 };
@@ -104,10 +104,10 @@ const rowStatusClass = (status: string) =>
     .toLowerCase()
     .replace(/_/g, "-")}`;
 const statusFlow = [
+  "WAIT",
   "SENT_BY_MERCHANT",
   "RECEIVED_ABROAD",
   "SENT_TO_ALGERIA",
-  "RECEIVED_IN_ALGERIA",
   "AVAILABLE",
 ];
 const fmt = (v: number) =>
@@ -509,6 +509,42 @@ export default function App() {
       });
     });
     const fullscreenButtons: HTMLButtonElement[] = [];
+    const ensureFullscreenButtons = () => {
+      root
+        .querySelectorAll<HTMLElement>(".table-responsive")
+        .forEach((wrapper) => {
+          if (wrapper.querySelector(".table-fullscreen-toggle")) return;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "table-fullscreen-toggle";
+          button.textContent = "⛶ Plein écran";
+          button.setAttribute(
+            "aria-label",
+            "Afficher le tableau en plein écran",
+          );
+          button.addEventListener("click", async () => {
+            try {
+              if (document.fullscreenElement === wrapper) {
+                await document.exitFullscreen();
+              } else if (wrapper.requestFullscreen) {
+                await wrapper.requestFullscreen();
+              } else {
+                button.textContent = "Plein écran non pris en charge";
+              }
+            } catch {
+              button.textContent = "Plein écran indisponible";
+            }
+          });
+          wrapper.appendChild(button);
+          fullscreenButtons.push(button);
+        });
+    };
+    // React changes pages/tabs dynamically: add the control whenever a table appears.
+    ensureFullscreenButtons();
+    const fullscreenObserver = new MutationObserver(() =>
+      ensureFullscreenButtons(),
+    );
+    fullscreenObserver.observe(root, { childList: true, subtree: true });
     const stickyButtons: HTMLButtonElement[] = [];
     wrappers.forEach((wrapper) => {
       if (!wrapper.querySelector(".table-fullscreen-toggle")) {
@@ -587,6 +623,7 @@ export default function App() {
 
     return () => {
       tableObserver.disconnect();
+      fullscreenObserver.disconnect();
       root.removeEventListener("click", handleSort);
       document.removeEventListener("fullscreenchange", updateFullscreenLabels);
       fullscreenButtons.forEach((button) => button.remove());
@@ -1020,9 +1057,9 @@ export default function App() {
       <style>
         {`
         .marketplace-name { display: inline-block; font-weight: 700; font-size: .9rem; white-space: nowrap; }
-        .marketplace-name-vinted { color: #087f5b; }
-        .marketplace-name-aliexpress { color: #e43225; }
-        .marketplace-name-leboncoin { color: #5b3cc4; }
+        .marketplace-name-vinted { color: #16834a; }
+        .marketplace-name-aliexpress { color: #e89a24; }
+        .marketplace-name-leboncoin { color: #c65a16; }
         /* Keep the selected marketplace label readable on the filled button. */
         .btn-group .btn.btn-primary .marketplace-name,
         .panel-toolbar .btn.btn-primary .marketplace-name {
@@ -1041,14 +1078,14 @@ export default function App() {
         .app-shell.menu-hidden .sidebar { display: none !important; }
         /* Color only the status label, not the entire table row. */
         .mobile-form-close { display: inline-flex; align-items: center; justify-content: center; gap: 0; width: 2rem; height: 2rem; padding: .25rem; font-size: 0; }\n        .status-radio-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; width: 100%; }
+        .shipping-situation-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; width: 100%; }
         .status-radio-option { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid #cbd5e1; border-radius: 999px; padding: .35rem .65rem; margin: 0; cursor: pointer; white-space: nowrap; font-size: .875rem; background: var(--bs-body-bg, #fff); }
         .status-radio-option input { margin: 0; accent-color: var(--status-radio-color, #2563eb); }
         .status-radio-option:nth-child(1) { --status-radio-color: #64748b; }
         .status-radio-option:nth-child(2) { --status-radio-color: #2563eb; } /* send: blue */
         .status-radio-option:nth-child(3) { --status-radio-color: #86efac; } /* delivred: light green */
         .status-radio-option:nth-child(4) { --status-radio-color: #0284c7; } /* Sent to Algeria: blue */
-        .status-radio-option:nth-child(5) { --status-radio-color: #0d9488; } /* Received in Algeria: teal */
-        .status-radio-option:nth-child(6) { --status-radio-color: #14532d; } /* end: dark green */
+        .status-radio-option:nth-child(5) { --status-radio-color: #14532d; } /* end: dark green */
         .status-radio-option:nth-child(7) { --status-radio-color: #0891b2; }
         .status-radio-option.is-active { border-color: var(--status-radio-color); background: color-mix(in srgb, var(--status-radio-color) 12%, white); color: var(--status-radio-color); }
         .status-radio-option.is-active { border-color: var(--status-radio-color); background: var(--status-radio-color); color: #fff; font-weight: 700; }
@@ -1057,9 +1094,12 @@ export default function App() {
         .status-radio-option input[type="radio"]:checked::before { transform: scale(1); }
         .status-radio-option.is-active input[type="radio"] { border-color: #fff; }
         .status-radio-option.is-active input[type="radio"]::before { background: var(--status-radio-color); }
-        @media (max-width: 768px) { .status-radio-filters { gap: .3rem; } .status-radio-option { font-size: .8rem; padding: .3rem .5rem; } }
+        @media (max-width: 768px) { .status-radio-filters, .shipping-situation-filters { gap: .3rem; } .status-radio-option { font-size: .8rem; padding: .3rem .5rem; } }
         .status-badge { display: inline-block; border: 0 !important; border-radius: 999px; padding: .2rem .55rem !important; font-weight: 700; white-space: nowrap; }
+        .status-badge.wait { color: #9a3412 !important; background: #ffedd5 !important; border: 1px solid #fdba74 !important; }
         .status-badge.sent-by-merchant { color: #1d4ed8 !important; background: #dbeafe !important; }
+        .purchase-status-cell { min-width: 150px; }
+        .purchase-status-select { margin-top: .35rem; min-width: 135px; }
         .status-badge.received-abroad { color: #166534 !important; background: #bbf7d0 !important; }
         .status-badge.sent-to-algeria { color: #075985 !important; background: #e0f2fe !important; }
         .status-badge.received-in-algeria { color: #6b21a8 !important; background: #ede9fe !important; }
@@ -1096,6 +1136,44 @@ export default function App() {
         .currency-price { display: inline-flex; align-items: baseline; gap: .35rem; font-weight: 700; white-space: nowrap; }
         .sales-filters-inline { display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(2, minmax(140px, 1fr)); align-items: end; gap: .75rem; }
         .sales-filters-inline .field { min-width: 0; }
+        /* Professional marketplace navigation inspired by the supplied tab-menu reference. */
+        .marketplace-tabbar { position:sticky !important; top:0 !important; z-index:30 !important; display:flex !important; flex-direction:row !important; align-items:flex-end; flex-wrap:nowrap; gap:0 !important; width:100%; min-width:0; padding:0 .45rem !important; border-bottom:5px solid #d9480f; background:linear-gradient(to bottom,#fff 0%,#f7f7f7 55%,#dedede 100%); box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(15,23,42,.08); overflow-x:auto; }
+        .marketplace-tabbar > .btn { position:relative; flex:0 0 auto; min-width:112px; margin:0 .12rem -1px !important; padding:.58rem .9rem .48rem !important; border:1px solid #b8b8b8 !important; border-bottom:0 !important; border-radius:11px 11px 0 0 !important; color:#172033 !important; background:linear-gradient(to bottom,#fff 0%,#f4f4f4 55%,#d8d8d8 100%) !important; box-shadow:inset 0 1px 0 rgba(255,255,255,.95); font-weight:700; line-height:1.15; justify-content:center; white-space:nowrap; }
+        .marketplace-tabbar > .btn[aria-selected="true"] { z-index:1; color:#fff !important; border-color:var(--market-tab-color,#d9480f) !important; background:linear-gradient(to bottom,color-mix(in srgb,var(--market-tab-color,#d9480f) 72%,white),var(--market-tab-color,#d9480f)) !important; box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 1px 2px rgba(0,0,0,.12); }
+        .marketplace-tabbar > .btn:nth-child(1) { --market-tab-color:#16834a; }
+        .marketplace-tabbar > .btn:nth-child(2) { --market-tab-color:#f0a12b; }
+        .marketplace-tabbar > .btn:nth-child(3) { --market-tab-color:#c65a16; }
+        .marketplace-tabbar > .btn[aria-selected="true"] .marketplace-name { color:#fff !important; }
+        /* Filters occupy a separate compact horizontal row below the tabs. */
+        .organized-filter-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; padding:.7rem .85rem; overflow-x:auto; }
+        .organized-filter-toolbar > .marketplace-tabbar { flex:0 0 100%; }
+        .organized-filter-toolbar > .btn-group:not(.marketplace-tabbar) { flex:0 0 118px; display:flex; flex-direction:column; align-self:stretch; }
+        .organized-filter-toolbar > .btn-group:not(.marketplace-tabbar) > .btn { width:100%; border-radius:.35rem !important; justify-content:center; }
+        .organized-filter-toolbar > .form-control,
+        .organized-filter-toolbar > .form-select { flex: 0 0 180px; min-width: 150px; max-width: 230px; }
+        .organized-filter-toolbar > .status-radio-filters,
+        .organized-filter-toolbar > .shipping-situation-filters { flex: 0 0 auto; width: auto; flex-wrap: nowrap; margin-top: 0; }
+        .organized-filter-toolbar > .muted { margin-left: auto; white-space: nowrap; }
+        .organized-sales-filters { grid-template-columns: minmax(190px, 1.5fr) repeat(3, minmax(135px, 1fr)); align-items: end; gap: .65rem; padding: .25rem 0 .75rem; }
+        .sales-marketplace-tabs { display:flex; flex-direction:row; width:100%; margin-bottom:.75rem !important; }
+        .organized-sales-filters .field { min-width: 0; }
+        .organized-sales-filters .field label { display: block; margin-bottom: .35rem; font-size: .82rem; font-weight: 600; color: var(--bs-secondary-color, #64748b); }
+        .organized-filter-toolbar .form-control,
+        .organized-filter-toolbar .form-select,
+        .organized-sales-filters .form-control { min-height: 40px; }
+        @media (max-width: 900px) {
+          .organized-sales-filters { grid-template-columns: repeat(4, minmax(135px, 1fr)); overflow-x: auto; }
+        }
+        @media (max-width: 600px) {
+          .organized-filter-toolbar { align-items:center; gap:.5rem; }
+          .organized-filter-toolbar > .btn-group:not(.marketplace-tabbar) { flex:0 0 105px; width:105px; display:flex; flex-direction:column; }
+          .organized-filter-toolbar > .btn-group:not(.marketplace-tabbar) > .btn { flex:0 0 auto; min-width:0; padding:.3rem .4rem; }
+          .marketplace-tabbar > .btn { min-width:100px; padding:.5rem .7rem .42rem !important; }
+          .organized-filter-toolbar > .form-control,
+          .organized-filter-toolbar > .form-select { flex: 0 0 155px; max-width: 155px; width: 155px; }
+          .organized-filter-toolbar > .muted { margin-left: 0; }
+          .organized-sales-filters { grid-template-columns: repeat(4, minmax(135px, 1fr)); overflow-x: auto; }
+        }
         @media (max-width: 700px) { .sales-filters-inline { grid-template-columns: 1fr; } }
         .currency-unit { font-weight: 800; }
         .product-details-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
@@ -1745,7 +1823,8 @@ export default function App() {
           }
           .main-area .mobile-table-sort-select { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 40px; }
           .main-area .mobile-table-sort-direction { flex: 0 0 42px; width: 42px; min-width: 42px; min-height: 40px; font-weight: 800; }
-          .main-area .table-fullscreen-toggle, .main-area .table-sticky-controls { display: none !important; }
+          .main-area .table-fullscreen-toggle { display: inline-flex !important; position: static !important; margin: .25rem .2rem .65rem 0 !important; }
+          .main-area .table-sticky-controls { display: none !important; }
 
           /* On phones, make the product name the visual title of each record card. */
           .main-area .table-responsive table tbody td.product-title-cell {
@@ -2219,6 +2298,34 @@ export default function App() {
             font-weight: 700 !important;
           }
         }
+
+        /* Purchases: fixed column geometry keeps every header aligned with its cells. */
+        .main-area .purchases-table-wrap { overflow-x: auto; }
+        .main-area table.purchases-table { width: 100%; min-width: 920px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+        .main-area table.purchases-table th,
+        .main-area table.purchases-table td { box-sizing: border-box; vertical-align: middle; }
+        .main-area table.purchases-table th { white-space: nowrap; font-size: .82rem; }
+        .main-area table.purchases-table td { overflow: hidden; text-overflow: ellipsis; }
+        .main-area table.purchases-table .purchase-recipient-cell { white-space: nowrap; }
+        .main-area table.purchases-table .purchase-status-cell { min-width: 0; white-space: normal; }
+        .main-area table.purchases-table .purchase-status-cell .status-badge { display: inline-block; max-width: 100%; }
+        .main-area table.purchases-table .purchase-delete-cell { text-align: center; }
+        .purchase-product-identity { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+        .purchase-category-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 2rem; width: 2rem; height: 2rem; border-radius: .55rem; background: rgba(100,116,139,.12); font-size: 1.15rem; }
+        .purchase-product-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        /* Soft full-row status colors in Purchases */
+        .main-area table.purchases-table tbody tr.status-row-wait > td { background: #fff7ed !important; }
+        .main-area table.purchases-table tbody tr.status-row-sent-by-merchant > td { background: #eff6ff !important; }
+        .main-area table.purchases-table tbody tr.status-row-received-abroad > td { background: #f0fdf4 !important; }
+        .main-area table.purchases-table tbody tr.status-row-sent-to-algeria > td { background: #f0f9ff !important; }
+        .main-area table.purchases-table tbody tr.status-row-available > td { background: #ecfdf5 !important; }
+        .main-area table.purchases-table tbody tr.status-row-sold > td { background: #f8fafc !important; }
+        .main-area table.purchases-table tbody tr.status-row-pending > td { background: #fef2f2 !important; }
+        .main-area table.purchases-table tbody tr.status-row:hover > td { filter: brightness(.98); }
+        @media (max-width: 768px) {
+          .main-area table.purchases-table { min-width: 920px !important; table-layout: fixed !important; }
+          .main-area .purchases-table-wrap { overflow-x: auto !important; }
+        }
       `}
       </style>
 
@@ -2603,7 +2710,7 @@ function DashboardPage({
     {
       key: "IN_TRANSIT",
       label: "Products in transit",
-      statuses: ["RECEIVED_ABROAD", "SENT_TO_ALGERIA", "RECEIVED_IN_ALGERIA"],
+      statuses: ["RECEIVED_ABROAD", "SENT_TO_ALGERIA"],
     },
     { key: "AVAILABLE", label: "End", statuses: ["AVAILABLE"] },
   ];
@@ -2639,7 +2746,7 @@ function DashboardPage({
   return (
     <>
       <PageIntro
-        title="Overview Edited By seyf"
+        title="Overview"
         subtitle="Summary of purchases, inventory, profits, and financial position."
         action={
           <span className="live-pill">
@@ -2953,6 +3060,18 @@ function PurchasesPage({
   ];
   const categoryLabel = (value: string) =>
     categories.find(([key]) => key === value)?.[1] || "DIV";
+  const categoryIcon = (value: string) => {
+    const icons: Record<string, string> = {
+      PHONE: "📱",
+      LAPTOP: "💻",
+      GAME_CONSOLE: "🎮",
+      ACCESSORY: "🎧",
+      CLOTHING: "👕",
+      SHOES: "👟",
+      OTHER: "📦",
+    };
+    return icons[value] || icons.OTHER;
+  };
   const platforms = Array.from(
     new Set(products.map((p) => p.purchase?.platform).filter(Boolean)),
   ) as string[];
@@ -2977,6 +3096,7 @@ function PurchasesPage({
   const [merchantFilter, setMerchantFilter] = useState("Vinted");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [recipientFilter, setRecipientFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [showMorePurchases, setShowMorePurchases] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -3002,6 +3122,7 @@ function PurchasesPage({
       (merchantFilter === "ALL" || p.purchase?.platform === merchantFilter) &&
       (categoryFilter === "ALL" || p.category === categoryFilter) &&
       (statusFilter === "ALL" || p.status === statusFilter) &&
+      (recipientFilter === "ALL" || getRecipient(p) === recipientFilter) &&
       p.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
   );
   const payload = () => ({
@@ -3048,10 +3169,7 @@ function PurchasesPage({
   };
   return (
     <>
-      <PageIntro
-        title="Purchases"
-        subtitle="Add a purchase or select a product from the list to edit its details."
-      />
+      <PageIntro title="" subtitle="o edit its details." />
       <div className="content-grid purchase-stack">
         <button
           type="button"
@@ -3258,8 +3376,12 @@ function PurchasesPage({
               {showMorePurchases ? "Hide details" : "Show more"}
             </button>
           </div>
-          <div className="panel-toolbar purchase-filters">
-            <div className="btn-group" role="tablist" aria-label="Select store">
+          <div className="panel-toolbar purchase-filters organized-filter-toolbar">
+            <div
+              className="btn-group marketplace-tabbar"
+              role="tablist"
+              aria-label="Select store"
+            >
               {["Vinted", "AliExpress", "Leboncoin"].map((store) => (
                 <button
                   key={store}
@@ -3267,7 +3389,10 @@ function PurchasesPage({
                   role="tab"
                   aria-selected={merchantFilter === store}
                   className={`btn ${merchantFilter === store ? "btn-primary" : "btn-outline-primary"}`}
-                  onClick={() => setMerchantFilter(store)}
+                  onClick={() => {
+                    setMerchantFilter(store);
+                    setRecipientFilter("ALL");
+                  }}
                 >
                   <span
                     title={store}
@@ -3299,6 +3424,21 @@ function PurchasesPage({
                 </option>
               ))}
             </select>
+            <select
+              className="form-select filter-select"
+              aria-label="Filter by recipient"
+              value={recipientFilter}
+              onChange={(e) => setRecipientFilter(e.target.value)}
+            >
+              <option value="ALL">All recipients</option>
+              {recipientOptions(
+                products.filter((p) => p.purchase?.platform === merchantFilter),
+              ).map((recipient) => (
+                <option key={recipient} value={recipient}>
+                  {recipient}
+                </option>
+              ))}
+            </select>
             <div
               className="status-radio-filters"
               role="radiogroup"
@@ -3327,7 +3467,26 @@ function PurchasesPage({
             </div>
           </div>
           <div className="table-responsive purchases-table-wrap">
-            <table className="table align-middle purchases-table">
+            <table
+              className={`table align-middle purchases-table ${showMorePurchases ? "purchases-table-detailed" : "purchases-table-compact"}`}
+            >
+              <colgroup>
+                {showMorePurchases ? (
+                  <>
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "15%" }} />
+                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "23%" }} />
+                    <col style={{ width: "10%" }} />
+                  </>
+                ) : (
+                  <>
+                    <col style={{ width: "68%" }} />
+                    <col style={{ width: "32%" }} />
+                  </>
+                )}
+              </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
@@ -3335,7 +3494,6 @@ function PurchasesPage({
                   <th title="Purchase price in currency">Price (FX)</th>
                   {showMorePurchases && (
                     <>
-                      <th title="Category">Cat.</th>
                       <th title="Purchase price in DZD">Price (DA)</th>
                       <th>Status</th>
                       <th>Delete</th>
@@ -3351,11 +3509,33 @@ function PurchasesPage({
                     title="Double-click to edit purchase details"
                     onDoubleClick={() => chooseProduct(p)}
                   >
-                    <td className="product-title-cell">{p.name}</td>
+                    <td
+                      className="product-title-cell"
+                      data-mobile-label="Product"
+                    >
+                      <span className="purchase-product-identity">
+                        <span
+                          className="purchase-category-icon"
+                          title={categoryLabel(p.category)}
+                          aria-label={categoryLabel(p.category)}
+                        >
+                          {categoryIcon(p.category)}
+                        </span>
+                        <span className="purchase-product-name">{p.name}</span>
+                      </span>
+                    </td>
                     {showMorePurchases && (
-                      <td>{(p.purchase as any)?.productUrl || "—"}</td>
+                      <td
+                        className="purchase-recipient-cell"
+                        data-mobile-label="Recipient"
+                      >
+                        {(p.purchase as any)?.productUrl || "—"}
+                      </td>
                     )}
-                    <td>
+                    <td
+                      className="purchase-fx-cell"
+                      data-mobile-label="Price (FX)"
+                    >
                       {p.purchase ? (
                         <span className="currency-price">
                           <strong>{fmt(p.purchase.purchasePrice || 0)}</strong>
@@ -3371,18 +3551,23 @@ function PurchasesPage({
                     </td>
                     {showMorePurchases && (
                       <>
-                        <td>{categoryLabel(p.category)}</td>
-                        <td>
+                        <td data-mobile-label="Price (DA)">
                           {fmt(
                             (p.purchase?.purchasePrice || 0) *
                               (p.purchase?.exchangeRate || 0),
                           )}{" "}
                           DA
                         </td>
-                        <td>
+                        <td
+                          className="purchase-status-cell"
+                          data-mobile-label="Status"
+                        >
                           <StatusBadge status={p.status} />
                         </td>
-                        <td>
+                        <td
+                          className="purchase-delete-cell"
+                          data-mobile-label="Delete"
+                        >
                           <button
                             type="button"
                             className="btn btn-sm btn-outline-danger"
@@ -3473,11 +3658,24 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
+function getRecipient(value: Product | Sale): string {
+  const product = "product" in value ? value.product : value;
+  return String((product.purchase as any)?.productUrl || "").trim();
+}
+
+function recipientOptions(values: Array<Product | Sale>): string[] {
+  return Array.from(new Set(values.map(getRecipient).filter(Boolean))).sort(
+    (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }),
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
-  const statusClass = status.toLowerCase().replace(/_/g, "-");
+  // Compatibility: old records marked RECEIVED_IN_ALGERIA are now treated as AVAILABLE.
+  const displayStatus = status === "RECEIVED_IN_ALGERIA" ? "AVAILABLE" : status;
+  const statusClass = displayStatus.toLowerCase().replace(/_/g, "-");
   return (
     <span className={`status-badge ${statusClass}`}>
-      {statusLabels[status] || status}
+      {statusLabels[displayStatus] || displayStatus}
     </span>
   );
 }
@@ -3492,11 +3690,13 @@ function ShippingPage({
   const [search, setSearch] = useState("");
   const [merchantFilter, setMerchantFilter] = useState("Vinted");
   const [situationFilter, setSituationFilter] = useState("ALL");
+  const [recipientFilter, setRecipientFilter] = useState("ALL");
   const rows = products.filter(
     (p) =>
       p.status !== "SOLD" &&
       p.purchase?.platform === merchantFilter &&
       (situationFilter === "ALL" || p.status === situationFilter) &&
+      (recipientFilter === "ALL" || getRecipient(p) === recipientFilter) &&
       p.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
   return (
@@ -3506,9 +3706,9 @@ function ShippingPage({
         subtitle="Track each store’s shipments separately and search by product name."
       />
       <section className="panel">
-        <div className="panel-toolbar">
+        <div className="panel-toolbar organized-filter-toolbar shipping-filter-toolbar">
           <div
-            className="btn-group"
+            className="btn-group marketplace-tabbar"
             role="tablist"
             aria-label="Select shipping store"
           >
@@ -3519,7 +3719,10 @@ function ShippingPage({
                 role="tab"
                 aria-selected={merchantFilter === store}
                 className={`btn ${merchantFilter === store ? "btn-primary" : "btn-outline-primary"}`}
-                onClick={() => setMerchantFilter(store)}
+                onClick={() => {
+                  setMerchantFilter(store);
+                  setRecipientFilter("ALL");
+                }}
               >
                 <span
                   title={store}
@@ -3530,16 +3733,42 @@ function ShippingPage({
               </button>
             ))}
           </div>
-          <select
-            className="form-select situation-filter"
+          <div
+            className="shipping-situation-filters"
+            role="radiogroup"
             aria-label="Filter shipments by situation"
-            value={situationFilter}
-            onChange={(e) => setSituationFilter(e.target.value)}
           >
-            <option value="ALL">All situations</option>
-            {statusFlow.map((s) => (
-              <option key={s} value={s}>
-                {statusLabels[s]}
+            {[
+              ["ALL", "All situations"],
+              ...statusFlow.map((s) => [s, statusLabels[s]]),
+            ].map(([key, label]) => (
+              <label
+                key={key}
+                className={`status-radio-option ${situationFilter === key ? "is-active" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="shipping-situation-filter"
+                  value={key}
+                  checked={situationFilter === key}
+                  onChange={() => setSituationFilter(key)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          <select
+            className="form-select filter-select"
+            aria-label="Filter by recipient"
+            value={recipientFilter}
+            onChange={(e) => setRecipientFilter(e.target.value)}
+          >
+            <option value="ALL">All recipients</option>
+            {recipientOptions(
+              products.filter((p) => p.purchase?.platform === merchantFilter),
+            ).map((recipient) => (
+              <option key={recipient} value={recipient}>
+                {recipient}
               </option>
             ))}
           </select>
@@ -3598,7 +3827,11 @@ function ShippingPage({
                   <td>
                     <select
                       className="form-select form-select-sm status-select"
-                      value={p.status}
+                      value={
+                        p.status === "RECEIVED_IN_ALGERIA"
+                          ? "AVAILABLE"
+                          : p.status
+                      }
                       onChange={(e) => void onStatus(p.id, e.target.value)}
                     >
                       {[...statusFlow].map((s) => (
@@ -3633,6 +3866,7 @@ function StockPage({
   const [filter, setFilter] = useState("AVAILABLE");
   const [merchantFilter, setMerchantFilter] = useState("Vinted");
   const [search, setSearch] = useState("");
+  const [recipientFilter, setRecipientFilter] = useState("ALL");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showMoreStock, setShowMoreStock] = useState(true);
   const storeProducts = products.filter(
@@ -3643,6 +3877,7 @@ function StockPage({
   const rows = storeProducts.filter(
     (p) =>
       (filter === "AVAILABLE" || p.status === filter) &&
+      (recipientFilter === "ALL" || getRecipient(p) === recipientFilter) &&
       p.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
   const remove = async (product: Product) => {
@@ -3658,9 +3893,9 @@ function StockPage({
         subtitle="Only received and available-for-sale products are shown. Sold products do not appear in inventory."
       />
       <section className="panel">
-        <div className="panel-toolbar">
+        <div className="panel-toolbar organized-filter-toolbar inventory-filter-toolbar">
           <div
-            className="btn-group"
+            className="btn-group marketplace-tabbar"
             role="tablist"
             aria-label="Select inventory store"
           >
@@ -3671,7 +3906,10 @@ function StockPage({
                 role="tab"
                 aria-selected={merchantFilter === store}
                 className={`btn ${merchantFilter === store ? "btn-primary" : "btn-outline-primary"}`}
-                onClick={() => setMerchantFilter(store)}
+                onClick={() => {
+                  setMerchantFilter(store);
+                  setRecipientFilter("ALL");
+                }}
               >
                 <span
                   title={store}
@@ -3690,6 +3928,21 @@ function StockPage({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <select
+            className="form-select filter-select"
+            aria-label="Filter by recipient"
+            value={recipientFilter}
+            onChange={(e) => setRecipientFilter(e.target.value)}
+          >
+            <option value="ALL">All recipients</option>
+            {recipientOptions(
+              products.filter((p) => p.purchase?.platform === merchantFilter),
+            ).map((recipient) => (
+              <option key={recipient} value={recipient}>
+                {recipient}
+              </option>
+            ))}
+          </select>
           <select
             className="form-select filter-select"
             value={filter}
@@ -3930,6 +4183,8 @@ function SalesPage({
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [merchantFilter, setMerchantFilter] = useState("Vinted");
+  const [recipientFilter, setRecipientFilter] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const selected = products.find((p) => p.id === productId);
@@ -3971,7 +4226,11 @@ function SalesPage({
       .includes(search.trim().toLocaleLowerCase());
     const day = new Date(s.saleDate).toISOString().slice(0, 10);
     return (
-      nameMatch && (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo)
+      nameMatch &&
+      s.product.purchase?.platform === merchantFilter &&
+      (recipientFilter === "ALL" || getRecipient(s) === recipientFilter) &&
+      (!dateFrom || day >= dateFrom) &&
+      (!dateTo || day <= dateTo)
     );
   });
   return (
@@ -4117,7 +4376,32 @@ function SalesPage({
               <p>Search by product name or select a date range.</p>
             </div>
           </div>
-          <div className="sales-filters-inline mb-3">
+          <div
+            className="btn-group mb-3 sales-marketplace-tabs marketplace-tabbar"
+            role="tablist"
+            aria-label="Select sales marketplace"
+          >
+            {["Vinted", "AliExpress", "Leboncoin"].map((store) => (
+              <button
+                key={store}
+                type="button"
+                role="tab"
+                aria-selected={merchantFilter === store}
+                className={`btn ${merchantFilter === store ? "btn-primary" : "btn-outline-primary"}`}
+                onClick={() => {
+                  setMerchantFilter(store);
+                  setRecipientFilter("ALL");
+                }}
+              >
+                <span
+                  className={`marketplace-name marketplace-name-${store.toLowerCase()}`}
+                >
+                  {store}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="sales-filters-inline organized-sales-filters mb-3">
             <Field label="Search by product name">
               <input
                 className="form-control"
@@ -4125,6 +4409,25 @@ function SalesPage({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Enter product name"
               />
+            </Field>
+            <Field label="Recipient">
+              <select
+                className="form-select"
+                value={recipientFilter}
+                onChange={(e) => setRecipientFilter(e.target.value)}
+              >
+                <option value="ALL">All recipients</option>
+                {recipientOptions(
+                  sales.filter(
+                    (sale) =>
+                      sale.product.purchase?.platform === merchantFilter,
+                  ),
+                ).map((recipient) => (
+                  <option key={recipient} value={recipient}>
+                    {recipient}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="From date">
               <input
